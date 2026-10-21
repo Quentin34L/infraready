@@ -1,0 +1,12 @@
+---
+# Disque ajoute dans VMware : verifie son nom avec "lsblk" avant de lancer le playbook
+# (sdb sur un controleur SCSI, nvme0n2 sur un controleur NVMe).
+storage_disk: sdb
+storage_vg: vg_data
+storage_lv: lv_data
+storage_lv_size: 4g # sur un disque de 5 Go : on garde de la marge pour un agrandissement
+storage_fstype: ext4
+storage_mount_point: /srv/data
+storage_owner: root
+storage_group: webadmin
+storage_mode: "2770"

@@ -1,0 +1,110 @@
+---
+- name: Creer le dossier des cles apt
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Recuperer la cle de signature du depot Grafana
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg-full.key
+    dest: /etc/apt/keyrings/grafana.asc
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Installer python3-debian (requis pour declarer un depot au format deb822)
+  ansible.builtin.apt:
+    name: python3-debian
+    state: present
+
+- name: Ajouter le depot apt officiel de Grafana
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: deb
+    uris: https://apt.grafana.com
+    suites: stable
+    components: main
+    signed_by: /etc/apt/keyrings/grafana.asc
+    state: present
+
+- name: Installer Grafana OSS
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: true
+
+- name: Definir le mot de passe admin (pris en compte au premier demarrage)
+  community.general.ini_file:
+    path: /etc/grafana/grafana.ini
+    section: security
+    option: admin_password
+    value: "{{ grafana_admin_password }}"
+    owner: root
+    group: grafana
+    mode: "0640"
+  no_log: true
+  notify: Redemarrer grafana
+
+- name: Desactiver la telemetrie Grafana
+  community.general.ini_file:
+    path: /etc/grafana/grafana.ini
+    section: analytics
+    option: reporting_enabled
+    value: "false"
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redemarrer grafana
+
+- name: Declarer Prometheus comme source de donnees
+  ansible.builtin.template:
+    src: datasource.yml.j2
+    dest: /etc/grafana/provisioning/datasources/infraready.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redemarrer grafana
+
+- name: Declarer le fournisseur de tableaux de bord
+  ansible.builtin.template:
+    src: dashboards.yml.j2
+    dest: /etc/grafana/provisioning/dashboards/infraready.yml
+    owner: root
+    group: grafana
+    mode: "0640"
+  notify: Redemarrer grafana
+
+- name: Creer le dossier des tableaux de bord
+  ansible.builtin.file:
+    path: "{{ grafana_dashboards_dir }}"
+    state: directory
+    owner: grafana
+    group: grafana
+    mode: "0755"
+
+- name: Deployer les tableaux de bord du depot
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ grafana_dashboards_dir }}/"
+    owner: grafana
+    group: grafana
+    mode: "0644"
+  with_fileglob:
+    - "{{ grafana_dashboards_src }}*.json"
+
+- name: Demarrer Grafana
+  ansible.builtin.service:
+    name: grafana-server
+    state: started
+    enabled: true
+
+- name: Pare-feu - interface Grafana accessible depuis le labo
+  community.general.ufw:
+    rule: allow
+    port: "3000"
+    proto: tcp
+    from_ip: "{{ grafana_allowed_network }}"
+    comment: Grafana

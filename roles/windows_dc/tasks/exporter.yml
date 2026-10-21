@@ -1,0 +1,60 @@
+---
+# Le MSI est telecharge par OPS01 puis copie sur le DC : le DC n'a pas besoin d'aller sur Internet.
+- name: Telecharger le MSI windows_exporter sur le controleur
+  ansible.builtin.get_url:
+    url: "{{ windows_dc_exporter_url }}"
+    dest: "/tmp/{{ windows_dc_exporter_msi }}"
+    mode: "0644"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Creer C:\Temp
+  ansible.windows.win_file:
+    path: C:\Temp
+    state: directory
+
+- name: Copier le MSI sur le controleur de domaine
+  ansible.windows.win_copy:
+    src: "/tmp/{{ windows_dc_exporter_msi }}"
+    dest: "C:\\Temp\\{{ windows_dc_exporter_msi }}"
+
+- name: Installer windows_exporter
+  ansible.windows.win_package:
+    path: "C:\\Temp\\{{ windows_dc_exporter_msi }}"
+    state: present
+
+- name: Demarrer le service windows_exporter
+  ansible.windows.win_service:
+    name: windows_exporter
+    start_mode: auto
+    state: started
+
+- name: Pare-feu - port 9182 ouvert a OPS01 uniquement
+  community.windows.win_firewall_rule:
+    name: InfraReady - windows_exporter depuis OPS01
+    direction: in
+    action: allow
+    protocol: tcp
+    localport: "9182"
+    remoteip: "{{ windows_dc_monitoring_ip }}"
+    profiles: [domain, private, public]
+    enabled: true
+    state: present
+
+- name: Restreindre a OPS01 la regle de pare-feu creee par le MSI (si elle existe)
+  ansible.windows.win_powershell:
+    parameters:
+      Allowed: "{{ windows_dc_monitoring_ip }}"
+    script: |
+      param([string]$Allowed)
+      $Ansible.Changed = $false
+      $regles = Get-NetFirewallRule -ErrorAction SilentlyContinue |
+          Where-Object { $_.DisplayName -like 'windows_exporter*' }
+      foreach ($r in $regles) {
+          $filtre = $r | Get-NetFirewallAddressFilter
+          if (@($filtre.RemoteAddress) -ne $Allowed) {
+              Set-NetFirewallRule -Name $r.Name -RemoteAddress $Allowed
+              $Ansible.Changed = $true
+          }
+      }

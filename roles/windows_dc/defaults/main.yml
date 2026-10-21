@@ -1,0 +1,41 @@
+---
+windows_dc_hostname: WIN-DC01
+windows_dc_base_ou: "OU=InfraReady,{{ lab_domain_dn }}"
+windows_dc_reverse_zone: 50.168.192.in-addr.arpa
+
+windows_dc_groups:
+  - name: GRP-Admins-Infra
+    description: Administrateurs de l'infrastructure InfraReady
+  - name: GRP-Support
+    description: Equipe support (lecture sur le partage commun)
+  - name: GRP-Utilisateurs
+    description: Utilisateurs metier (modification sur le partage commun)
+
+windows_dc_users:
+  - login: a.martin
+    firstname: Alice
+    surname: Martin
+    groups: [GRP-Admins-Infra]
+  - login: s.bernard
+    firstname: Samir
+    surname: Bernard
+    groups: [GRP-Support]
+  - login: l.petit
+    firstname: Lea
+    surname: Petit
+    groups: [GRP-Utilisateurs]
+  - login: t.moreau
+    firstname: Tom
+    surname: Moreau
+    groups: [GRP-Utilisateurs]
+
+windows_dc_share_name: Commun
+windows_dc_share_path: C:\Partages\Commun
+
+# windows_exporter : verifie la derniere version sur
+# https://github.com/prometheus-community/windows_exporter/releases
+windows_dc_exporter_version: "0.31.8"
+windows_dc_exporter_msi: "windows_exporter-{{ windows_dc_exporter_version }}-amd64.msi"
+windows_dc_exporter_url: >-
+  https://github.com/prometheus-community/windows_exporter/releases/download/v{{ windows_dc_exporter_version }}/{{ windows_dc_exporter_msi }}
+windows_dc_monitoring_ip: "{{ lab_controller_ip }}"

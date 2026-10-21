@@ -1,0 +1,25 @@
+---
+- name: Socle commun des serveurs Ubuntu
+  hosts: linux
+  become: true
+  roles:
+    - common
+
+- name: Services du serveur LINUX01
+  hosts: web
+  become: true
+  roles:
+    - linux_accounts
+    - webserver
+    - storage
+
+  post_tasks:
+    - name: Verifier que le site repond
+      ansible.builtin.uri:
+        url: http://localhost/health
+        status_code: 200
+      changed_when: false
+
+    - name: Verifier que le stockage est monte
+      ansible.builtin.command: findmnt {{ storage_mount_point }}
+      changed_when: false

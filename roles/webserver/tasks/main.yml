@@ -1,0 +1,64 @@
+---
+- name: Installer nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Creer la racine du site (groupe webadmin, setgid)
+  ansible.builtin.file:
+    path: "{{ webserver_root }}"
+    state: directory
+    owner: root
+    group: "{{ webserver_content_group }}"
+    mode: "2775"
+
+- name: Deposer la page d'accueil (uniquement si absente, le contenu appartient ensuite a webadmin)
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ webserver_root }}/index.html"
+    owner: root
+    group: "{{ webserver_content_group }}"
+    mode: "0664"
+    force: false
+
+- name: Deployer la configuration du site
+  ansible.builtin.template:
+    src: infraready.conf.j2
+    dest: /etc/nginx/sites-available/infraready.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Tester la configuration nginx
+    - Recharger nginx
+
+- name: Activer le site InfraReady
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/infraready.conf
+    dest: /etc/nginx/sites-enabled/infraready.conf
+    state: link
+  notify:
+    - Tester la configuration nginx
+    - Recharger nginx
+
+- name: Desactiver le site par defaut
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify:
+    - Tester la configuration nginx
+    - Recharger nginx
+
+- name: Demarrer nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true
+
+- name: Pare-feu - autoriser HTTP depuis le reseau du labo
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    from_ip: "{{ webserver_allowed_network }}"
+    comment: HTTP labo

@@ -1,0 +1,47 @@
+---
+- name: Creer l'unite d'organisation racine InfraReady
+  microsoft.ad.ou:
+    name: InfraReady
+    path: "{{ lab_domain_dn }}"
+    description: Objets geres par Ansible
+    state: present
+
+- name: Creer les unites d'organisation Utilisateurs et Groupes
+  microsoft.ad.ou:
+    name: "{{ item }}"
+    path: "{{ windows_dc_base_ou }}"
+    state: present
+  loop:
+    - Utilisateurs
+    - Groupes
+
+- name: Creer les groupes de securite globaux
+  microsoft.ad.group:
+    name: "{{ item.name }}"
+    description: "{{ item.description }}"
+    scope: global
+    category: security
+    path: "OU=Groupes,{{ windows_dc_base_ou }}"
+    state: present
+  loop: "{{ windows_dc_groups }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Creer les comptes utilisateurs de test
+  microsoft.ad.user:
+    name: "{{ item.login }}"
+    sam_account_name: "{{ item.login }}"
+    upn: "{{ item.login }}@{{ lab_domain }}"
+    firstname: "{{ item.firstname }}"
+    surname: "{{ item.surname }}"
+    display_name: "{{ item.firstname }} {{ item.surname }}"
+    password: "{{ vault_ad_default_user_password }}"
+    update_password: on_create
+    path: "OU=Utilisateurs,{{ windows_dc_base_ou }}"
+    groups:
+      add: "{{ item.groups }}"
+    enabled: true
+    state: present
+  loop: "{{ windows_dc_users }}"
+  loop_control:
+    label: "{{ item.login }}"

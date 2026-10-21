@@ -1,0 +1,33 @@
+---
+- name: Creer les groupes
+  ansible.builtin.group:
+    name: "{{ item }}"
+    state: present
+  loop: "{{ linux_accounts_groups }}"
+
+- name: Creer les comptes utilisateurs
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    comment: "{{ item.comment }}"
+    groups: "{{ item.groups }}"
+    append: true
+    shell: /bin/bash
+    create_home: true
+    password: "{{ linux_accounts_password_hash }}"
+    update_password: on_create
+  loop: "{{ linux_accounts_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Donner au groupe webadmin le droit de gerer nginx (et rien d'autre)
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/10-webadmin
+    content: |
+      # Gere par Ansible - InfraReady
+      # Moindre privilege : webadmin peut tester, recharger et redemarrer nginx uniquement.
+      Cmnd_Alias NGINX_CMDS = /usr/bin/systemctl reload nginx, /usr/bin/systemctl restart nginx, /usr/bin/systemctl status nginx, /usr/sbin/nginx -t
+      %webadmin ALL=(root) NGINX_CMDS
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s

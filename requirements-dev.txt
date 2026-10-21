@@ -1,0 +1,5 @@
+# Outils de validation (CI GitHub Actions et poste de travail)
+ansible-core>=2.18
+ansible-lint>=25.0
+yamllint>=1.35
+pywinrm>=0.5

@@ -1,0 +1,14 @@
+---
+# Deploiement complet du laboratoire, dans l'ordre des dependances :
+# le DNS (Windows) d'abord, puis Linux, puis la supervision, puis les controles.
+- name: Controleur de domaine Windows
+  ansible.builtin.import_playbook: windows.yml
+
+- name: Serveurs Linux
+  ansible.builtin.import_playbook: linux.yml
+
+- name: Supervision
+  ansible.builtin.import_playbook: monitoring.yml
+
+- name: Verifications
+  ansible.builtin.import_playbook: verification.yml

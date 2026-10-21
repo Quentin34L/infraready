@@ -1,0 +1,15 @@
+---
+common_timezone: Europe/Paris
+common_packages:
+  - curl
+  - vim
+  - htop
+  - tree
+  - lvm2
+  - ufw
+  - chrony
+  - prometheus-node-exporter
+common_admin_network: "{{ lab_network }}"
+common_monitoring_ip: "{{ lab_controller_ip }}"
+# Passe a true UNIQUEMENT apres avoir verifie que la connexion par cle SSH fonctionne
+common_ssh_disable_password_auth: false

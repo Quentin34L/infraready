@@ -1,0 +1,53 @@
+---
+# Provoque un incident CONTROLE et REVERSIBLE pour l'exercice de diagnostic (partie H).
+# Prendre un snapshot avant. Choisir UN scenario :
+#   ansible-playbook playbooks/incident.yml -e incident_scenario=nginx_arret
+#   ansible-playbook playbooks/incident.yml -e incident_scenario=disque_plein
+#   ansible-playbook playbooks/incident.yml -e incident_scenario=dns_incorrect
+#   ansible-playbook playbooks/incident.yml -e incident_scenario=exporter_windows_arret
+# Retour a la normale : voir docs/incident.md (puis playbooks/verification.yml).
+
+- name: Incident cote Linux
+  hosts: web
+  become: true
+  gather_facts: false
+  vars:
+    incident_scenario: aucun
+  tasks:
+    - name: Verifier le nom du scenario
+      ansible.builtin.assert:
+        that:
+          - incident_scenario in ['nginx_arret', 'disque_plein', 'dns_incorrect', 'exporter_windows_arret']
+        fail_msg: "Scenario inconnu : {{ incident_scenario }}"
+      run_once: true
+
+    - name: Scenario nginx_arret - arreter le serveur web
+      ansible.builtin.service:
+        name: nginx
+        state: stopped
+      when: incident_scenario == 'nginx_arret'
+
+    - name: Scenario disque_plein - remplir /srv/data au-dela de 80 %
+      ansible.builtin.command: fallocate -l 3500M /srv/data/incident_remplissage.bin
+      args:
+        creates: /srv/data/incident_remplissage.bin
+      when: incident_scenario == 'disque_plein'
+
+    - name: Scenario dns_incorrect - forcer une mauvaise adresse pour le DC
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: "192.168.50.99 win-dc01.{{ lab_domain }} win-dc01 # INCIDENT-INFRAREADY"
+        state: present
+      when: incident_scenario == 'dns_incorrect'
+
+- name: Incident cote Windows
+  hosts: windows
+  gather_facts: false
+  vars:
+    incident_scenario: aucun
+  tasks:
+    - name: Scenario exporter_windows_arret - arreter windows_exporter
+      ansible.windows.win_service:
+        name: windows_exporter
+        state: stopped
+      when: incident_scenario == 'exporter_windows_arret'

@@ -1,0 +1,30 @@
+---
+- name: Installer le role AD DS et ses outils d'administration
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+    state: present
+  register: windows_dc_feature_result
+
+- name: Redemarrer si l'installation du role l'exige
+  ansible.windows.win_reboot:
+    reboot_timeout: 900
+  when: windows_dc_feature_result.reboot_required
+
+- name: Creer la foret et le domaine (redemarrage automatique)
+  microsoft.ad.domain:
+    dns_domain_name: "{{ lab_domain }}"
+    domain_netbios_name: "{{ lab_netbios }}"
+    safe_mode_password: "{{ vault_ad_safe_mode_password }}"
+    install_dns: true
+    reboot: true
+
+- name: Attendre que les services AD repondent apres le redemarrage
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      (Get-ADDomain).DNSRoot
+  register: windows_dc_ad_ready
+  until: windows_dc_ad_ready is succeeded
+  retries: 20
+  delay: 15

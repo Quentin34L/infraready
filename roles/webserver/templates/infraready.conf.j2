@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+server {
+    listen 80 default_server;
+    server_name {{ webserver_server_name }} web.{{ lab_domain }} {{ inventory_hostname }};
+
+    root {{ webserver_root }};
+    index index.html;
+    server_tokens off;
+
+    access_log /var/log/nginx/infraready_access.log;
+    error_log  /var/log/nginx/infraready_error.log;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Point de controle utilise par le playbook de verification
+    location = /health {
+        access_log off;
+        default_type text/plain;
+        return 200 "OK\n";
+    }
+}

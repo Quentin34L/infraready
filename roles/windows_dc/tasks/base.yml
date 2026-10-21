@@ -1,0 +1,23 @@
+---
+- name: Definir le nom de la machine
+  ansible.windows.win_hostname:
+    name: "{{ windows_dc_hostname }}"
+  register: windows_dc_hostname_result
+
+- name: Redemarrer apres le changement de nom
+  ansible.windows.win_reboot:
+    reboot_timeout: 900
+  when: windows_dc_hostname_result.reboot_required
+
+- name: Autoriser le ping (ICMPv4 echo) depuis le reseau du labo
+  community.windows.win_firewall_rule:
+    name: InfraReady - ICMPv4 depuis le labo
+    direction: in
+    action: allow
+    protocol: icmpv4
+    icmp_type_code:
+      - "8:*"
+    remoteip: "{{ lab_network }}"
+    profiles: [domain, private, public]
+    enabled: true
+    state: present

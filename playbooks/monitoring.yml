@@ -1,0 +1,28 @@
+---
+- name: Supervision sur OPS01
+  hosts: monitoring
+  become: true
+  roles:
+    - prometheus
+    - grafana
+
+  post_tasks:
+    - name: Attendre que Prometheus soit pret
+      ansible.builtin.uri:
+        url: http://localhost:9090/-/ready
+        status_code: 200
+      register: monitoring_prom_ready
+      until: monitoring_prom_ready.status == 200
+      retries: 10
+      delay: 3
+      changed_when: false
+
+    - name: Attendre que Grafana soit pret
+      ansible.builtin.uri:
+        url: http://localhost:3000/api/health
+        status_code: 200
+      register: monitoring_grafana_ready
+      until: monitoring_grafana_ready.status == 200
+      retries: 20
+      delay: 3
+      changed_when: false

@@ -1,0 +1,14 @@
+---
+linux_accounts_groups:
+  - webadmin # administre le site web
+  - auditeurs # consulte les journaux, ne modifie rien
+
+linux_accounts_users:
+  - name: lmartin
+    comment: Lucas Martin - administrateur web
+    groups: [webadmin]
+  - name: cdurand
+    comment: Chloe Durand - auditrice
+    groups: [auditeurs, adm] # adm = lecture des journaux systeme et nginx
+
+linux_accounts_password_hash: "{{ vault_linux_users_password_hash }}"

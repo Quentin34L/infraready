@@ -1,0 +1,49 @@
+---
+- name: Installer Prometheus (paquet Ubuntu)
+  ansible.builtin.apt:
+    name: prometheus
+    state: present
+
+- name: Creer le dossier des regles d'alerte
+  ansible.builtin.file:
+    path: /etc/prometheus/rules
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deployer les regles d'alerte (validees par promtool)
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /etc/prometheus/rules/
+    owner: root
+    group: root
+    mode: "0644"
+    validate: promtool check rules %s
+  with_fileglob:
+    - "{{ prometheus_rules_src }}*.yml"
+  notify: Recharger prometheus
+
+- name: Deployer la configuration Prometheus (validee par promtool)
+  ansible.builtin.copy:
+    src: "{{ prometheus_config_src }}"
+    dest: /etc/prometheus/prometheus.yml
+    owner: root
+    group: root
+    mode: "0644"
+    validate: promtool check config --syntax-only %s
+  notify: Recharger prometheus
+
+- name: Demarrer Prometheus
+  ansible.builtin.service:
+    name: prometheus
+    state: started
+    enabled: true
+
+- name: Pare-feu - interface Prometheus accessible depuis le labo
+  community.general.ufw:
+    rule: allow
+    port: "9090"
+    proto: tcp
+    from_ip: "{{ prometheus_allowed_network }}"
+    comment: Prometheus

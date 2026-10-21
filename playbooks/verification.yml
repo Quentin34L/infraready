@@ -1,0 +1,152 @@
+---
+# Controles en lecture seule : ce playbook ne modifie rien (changed=0 attendu).
+# Lancement : ansible-playbook playbooks/verification.yml
+
+- name: Verifications Linux
+  hosts: linux
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Ping du controleur de domaine
+      ansible.builtin.command: ping -c 2 -W 2 {{ lab_dns_server }}
+      register: verif_ping_dc
+      changed_when: false
+      failed_when: false
+
+    - name: Resolution DNS du domaine via le DC
+      ansible.builtin.command: getent hosts win-dc01.{{ lab_domain }}
+      register: verif_dns
+      changed_when: false
+      failed_when: false
+
+    - name: Etat des services
+      ansible.builtin.service_facts:
+
+    - name: Occupation des disques / et /srv/data
+      ansible.builtin.debug:
+        msg: "{{ item.mount }} : {{ (100 * (1 - item.size_available / item.size_total)) | round(1) }} % utilise"
+      loop: "{{ ansible_facts.mounts | selectattr('mount', 'in', ['/', '/srv/data']) | list }}"
+      loop_control:
+        label: "{{ item.mount }}"
+
+    - name: Erreurs du journal systeme depuis le dernier demarrage (10 dernieres)
+      ansible.builtin.command: journalctl -p err -b --no-pager -n 10
+      register: verif_journal
+      changed_when: false
+
+    - name: Afficher les journaux d'erreurs
+      ansible.builtin.debug:
+        var: verif_journal.stdout_lines
+
+    - name: Bilan Linux
+      ansible.builtin.assert:
+        that:
+          - verif_ping_dc.rc == 0
+          - verif_dns.rc == 0
+          - ansible_facts.services['prometheus-node-exporter.service'].state == 'running'
+        fail_msg: >-
+          Echec sur {{ inventory_hostname }} : ping DC rc={{ verif_ping_dc.rc }},
+          DNS rc={{ verif_dns.rc }},
+          node_exporter={{ ansible_facts.services['prometheus-node-exporter.service'].state | default('absent') }}
+        success_msg: "{{ inventory_hostname }} : reseau, DNS et node_exporter OK"
+
+- name: Verifications du serveur web
+  hosts: web
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Test HTTP du site InfraReady
+      ansible.builtin.uri:
+        url: http://localhost/health
+        status_code: 200
+      changed_when: false
+
+    - name: Test du stockage monte
+      ansible.builtin.command: findmnt -n -o SOURCE,TARGET,FSTYPE,SIZE /srv/data
+      register: verif_mount
+      changed_when: false
+
+    - name: Afficher le montage
+      ansible.builtin.debug:
+        var: verif_mount.stdout
+
+- name: Verifications de la supervision
+  hosts: monitoring
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Recuperer l'etat des cibles Prometheus
+      ansible.builtin.uri:
+        url: http://localhost:9090/api/v1/targets
+        return_content: true
+      register: verif_targets
+      changed_when: false
+
+    - name: Afficher chaque cible et son etat
+      ansible.builtin.debug:
+        msg: "{{ item.labels.job }} / {{ item.labels.hostname | default(item.labels.instance) }} : {{ item.health }}"
+      loop: "{{ verif_targets.json.data.activeTargets }}"
+      loop_control:
+        label: "{{ item.scrapeUrl }}"
+
+    - name: Toutes les cibles doivent etre UP
+      ansible.builtin.assert:
+        that:
+          - verif_targets.json.data.activeTargets | rejectattr('health', 'equalto', 'up') | list | length == 0
+        fail_msg: "Cibles en erreur : {{ verif_targets.json.data.activeTargets | rejectattr('health', 'equalto', 'up') | map(attribute='scrapeUrl') | list }}"
+        success_msg: Toutes les cibles Prometheus sont UP
+
+    - name: Alertes en cours dans Prometheus
+      ansible.builtin.uri:
+        url: http://localhost:9090/api/v1/alerts
+        return_content: true
+      register: verif_alerts
+      changed_when: false
+
+    - name: Afficher les alertes
+      ansible.builtin.debug:
+        msg: "{{ verif_alerts.json.data.alerts | map(attribute='labels.alertname') | list }}"
+
+    - name: Sante de Grafana
+      ansible.builtin.uri:
+        url: http://localhost:3000/api/health
+        status_code: 200
+      changed_when: false
+
+- name: Verifications Windows
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Etat du domaine, des services et des journaux
+      ansible.windows.win_powershell:
+        script: |
+          $Ansible.Changed = $false
+          $services = Get-Service NTDS, DNS, windows_exporter |
+              ForEach-Object { "$($_.Name)=$($_.Status)" }
+          $erreurs = Get-WinEvent -FilterHashtable @{ LogName = 'System'; Level = 1, 2; StartTime = (Get-Date).AddHours(-24) } `
+              -MaxEvents 5 -ErrorAction SilentlyContinue |
+              ForEach-Object { "$($_.TimeCreated) [$($_.Id)] $($_.ProviderName)" }
+          [PSCustomObject]@{
+              Domaine        = (Get-ADDomain).DNSRoot
+              Utilisateurs   = @(Get-ADUser -Filter * -SearchBase 'OU=InfraReady,DC=infraready,DC=test').Count
+              Groupes        = @(Get-ADGroup -Filter 'Name -like "GRP-*"').Count
+              DnsLinux01     = (Resolve-DnsName linux01.infraready.test -Type A -ErrorAction SilentlyContinue).IPAddress
+              DnsExterne     = [bool](Resolve-DnsName github.com -ErrorAction SilentlyContinue)
+              Services       = $services
+              ErreursSysteme = $erreurs
+          }
+      register: verif_windows
+
+    - name: Afficher le bilan Windows
+      ansible.builtin.debug:
+        var: verif_windows.output
+
+    - name: Bilan Windows
+      ansible.builtin.assert:
+        that:
+          - verif_windows.output[0].Domaine == lab_domain
+          - verif_windows.output[0].DnsLinux01 == '192.168.50.20'
+          - "'windows_exporter=Running' in verif_windows.output[0].Services"
+          - "'NTDS=Running' in verif_windows.output[0].Services"
+        fail_msg: Le controleur de domaine presente une anomalie (voir le bilan ci-dessus)
+        success_msg: Domaine, DNS et services Windows OK

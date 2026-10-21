@@ -1,0 +1,28 @@
+---
+# Parametres communs a tout le laboratoire
+lab_domain: infraready.test
+lab_netbios: INFRAREADY
+lab_domain_dn: DC=infraready,DC=test
+
+lab_network: 192.168.50.0/24
+lab_gateway: 192.168.50.2 # passerelle NAT VMware (VMnet8)
+lab_dns_server: 192.168.50.10 # WIN-DC01
+lab_dns_forwarder: 192.168.50.2 # le DC redirige les noms externes vers le DNS NAT VMware
+lab_controller_ip: 192.168.50.30 # OPS01
+
+lab_hosts:
+  - name: win-dc01
+    ip: 192.168.50.10
+  - name: linux01
+    ip: 192.168.50.20
+  - name: ops01
+    ip: 192.168.50.30
+
+# Alias DNS (CNAME) crees dans la zone du domaine
+lab_dns_aliases:
+  - name: web
+    target: linux01
+  - name: grafana
+    target: ops01
+  - name: prometheus
+    target: ops01

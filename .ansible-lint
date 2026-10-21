@@ -1,0 +1,9 @@
+---
+profile: production
+
+exclude_paths:
+  - .github/
+  - collections/
+  - monitoring/
+  - inventory/group_vars/all/vault.yml
+  - inventory/group_vars/all/vault.yml.example

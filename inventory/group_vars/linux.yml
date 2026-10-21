@@ -1,0 +1,5 @@
+---
+# Connexion SSH aux serveurs Ubuntu
+ansible_user: infra # compte cree pendant l'installation d'Ubuntu
+ansible_become: true
+ansible_become_password: "{{ vault_linux_become_password }}"

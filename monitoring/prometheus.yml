@@ -1,0 +1,39 @@
+---
+# Configuration Prometheus du laboratoire InfraReady
+# Deployee sur OPS01 dans /etc/prometheus/prometheus.yml par playbooks/monitoring.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    lab: infraready
+
+rule_files:
+  - rules/*.yml
+
+scrape_configs:
+  # Prometheus se surveille lui-meme
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          hostname: ops01
+
+  # Serveurs Ubuntu : node_exporter (port 9100)
+  - job_name: linux
+    static_configs:
+      - targets: ["192.168.50.20:9100"]
+        labels:
+          hostname: linux01
+          role: services
+      - targets: ["192.168.50.30:9100"]
+        labels:
+          hostname: ops01
+          role: supervision
+
+  # Controleur de domaine : windows_exporter (port 9182)
+  - job_name: windows
+    static_configs:
+      - targets: ["192.168.50.10:9182"]
+        labels:
+          hostname: win-dc01
+          role: annuaire

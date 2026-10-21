@@ -1,0 +1,59 @@
+---
+# Regles d'alerte InfraReady (visibles dans Prometheus > Alerts)
+groups:
+  - name: infraready-disponibilite
+    rules:
+      - alert: HoteInjoignable
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.hostname }} ne repond plus ({{ $labels.job }})"
+          description: "L'exporter de {{ $labels.instance }} n'est plus collecte depuis plus d'une minute."
+
+  - name: infraready-ressources
+    rules:
+      - alert: DisqueLinuxPresquePlein
+        expr: >-
+          100 * (1 - node_filesystem_avail_bytes{fstype=~"ext4|xfs"}
+          / node_filesystem_size_bytes{fstype=~"ext4|xfs"}) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }} : {{ $labels.mountpoint }} rempli a plus de 80 %"
+          description: "Valeur actuelle : {{ $value | printf \"%.1f\" }} %"
+
+      - alert: DisqueWindowsPresquePlein
+        expr: >-
+          100 * (1 - windows_logical_disk_free_bytes{volume=~"[A-Z]:"}
+          / windows_logical_disk_size_bytes{volume=~"[A-Z]:"}) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }} : volume {{ $labels.volume }} rempli a plus de 80 %"
+          description: "Valeur actuelle : {{ $value | printf \"%.1f\" }} %"
+
+      - alert: CPUEleve
+        expr: >-
+          100 - (avg by (hostname) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+          or
+          100 - (avg by (hostname) (rate(windows_cpu_time_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }} : CPU au-dessus de 90 % depuis 5 minutes"
+
+      - alert: MemoireElevee
+        expr: >-
+          100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 90
+          or
+          100 * (1 - windows_memory_available_bytes / windows_memory_physical_total_bytes) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.hostname }} : memoire utilisee au-dessus de 90 %"

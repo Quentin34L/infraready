@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+PermitRootLogin no
+PasswordAuthentication {{ 'no' if common_ssh_disable_password_auth | bool else 'yes' }}
+MaxAuthTries 3
+LoginGraceTime 30
+X11Forwarding no

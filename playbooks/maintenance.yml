@@ -1,0 +1,115 @@
+---
+# Maintenance controlee
+#   Simulation : ansible-playbook playbooks/maintenance.yml --check
+#   Linux      : ansible-playbook playbooks/maintenance.yml --limit linux
+#   Avec redemarrage si necessaire : ... -e maintenance_reboot=true
+#   Windows (installer au lieu de lister) : ... -e maintenance_windows_install=true
+# AVANT : snapshot VMware de chaque VM concernee (voir docs/maintenance.md).
+
+- name: Maintenance Linux (un serveur a la fois)
+  hosts: linux
+  become: true
+  serial: 1
+  vars:
+    maintenance_reboot: false
+    maintenance_min_free_pct: 15
+
+  pre_tasks:
+    - name: Calculer l'espace libre sur /
+      ansible.builtin.set_fact:
+        maintenance_root_free_pct: >-
+          {{ (100 * (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first)
+          / (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_total') | first)) | round(1) }}
+
+    - name: Bloquer si l'espace libre est insuffisant
+      ansible.builtin.assert:
+        that:
+          - maintenance_root_free_pct | float >= maintenance_min_free_pct
+        fail_msg: "Seulement {{ maintenance_root_free_pct }} % libres sur / : on ne met pas a jour."
+        success_msg: "{{ maintenance_root_free_pct }} % libres sur /"
+
+  tasks:
+    - name: Lister les paquets a mettre a jour
+      ansible.builtin.command: apt list --upgradable
+      register: maintenance_upgradable
+      changed_when: false
+
+    - name: Afficher les paquets a mettre a jour
+      ansible.builtin.debug:
+        var: maintenance_upgradable.stdout_lines
+
+    - name: Appliquer les mises a jour
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: safe
+        autoremove: true
+
+    - name: Verifier si un redemarrage est requis
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: maintenance_reboot_flag
+
+    - name: Signaler le redemarrage en attente
+      ansible.builtin.debug:
+        msg: "Redemarrage requis sur {{ inventory_hostname }} : {{ maintenance_reboot_flag.stat.exists }}"
+
+    - name: Redemarrer (jamais OPS01, qui execute le playbook)
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when:
+        - maintenance_reboot | bool
+        - maintenance_reboot_flag.stat.exists
+        - ansible_connection != 'local'
+
+  post_tasks:
+    - name: Recuperer l'etat des services
+      ansible.builtin.service_facts:
+
+    - name: Verifier que les services critiques tournent
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['prometheus-node-exporter.service'].state == 'running'
+          - >-
+            'web' not in group_names
+            or ansible_facts.services['nginx.service'].state == 'running'
+        fail_msg: Un service critique ne tourne pas apres la maintenance
+
+- name: Maintenance Windows (mecanisme natif Windows Update)
+  hosts: windows
+  vars:
+    maintenance_windows_install: false
+    maintenance_reboot: false
+  tasks:
+    - name: Rechercher ou installer les mises a jour de securite et critiques
+      ansible.windows.win_updates:
+        category_names:
+          - SecurityUpdates
+          - CriticalUpdates
+          - UpdateRollups
+        state: "{{ 'installed' if maintenance_windows_install | bool else 'searched' }}"
+        reboot: "{{ maintenance_reboot | bool }}"
+        log_path: C:\Temp\win_updates.log
+      register: maintenance_win_updates
+
+    - name: Resume des mises a jour Windows
+      ansible.builtin.debug:
+        msg:
+          - "Mises a jour trouvees : {{ maintenance_win_updates.found_update_count | default(0) }}"
+          - "Mises a jour installees : {{ maintenance_win_updates.installed_update_count | default(0) }}"
+          - "Redemarrage requis : {{ maintenance_win_updates.reboot_required | default(false) }}"
+
+    - name: Verifier les services AD, DNS et windows_exporter
+      ansible.windows.win_service_info:
+        name: "{{ item }}"
+      loop: [NTDS, DNS, windows_exporter]
+      register: maintenance_win_services
+
+    - name: Bloquer si un service Windows est arrete
+      ansible.builtin.assert:
+        that:
+          - item.services[0].state == 'started'
+        fail_msg: "Le service {{ item.item }} n'est pas demarre"
+        quiet: true
+      loop: "{{ maintenance_win_services.results }}"
+      loop_control:
+        label: "{{ item.item }}"

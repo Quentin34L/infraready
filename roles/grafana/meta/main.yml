@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: infraready
+  description: Grafana OSS avec source Prometheus et tableau de bord provisionnes
+  license: MIT
+  min_ansible_version: "2.18"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+dependencies: []

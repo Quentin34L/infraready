@@ -1,0 +1,4 @@
+---
+prometheus_config_src: "{{ playbook_dir }}/../monitoring/prometheus.yml"
+prometheus_rules_src: "{{ playbook_dir }}/../monitoring/rules/"
+prometheus_allowed_network: "{{ lab_network }}"

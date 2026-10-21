@@ -1,0 +1,11 @@
+---
+# Connexion WinRM au controleur de domaine
+# HTTP 5985 + NTLM : les messages sont chiffres par NTLM, et le pare-feu Windows
+# n'accepte WinRM que depuis OPS01 (voir scripts/windows/Enable-WinRM.ps1).
+ansible_connection: winrm
+ansible_port: 5985
+ansible_winrm_scheme: http
+ansible_winrm_transport: ntlm
+ansible_winrm_message_encryption: always
+ansible_user: Administrator
+ansible_password: "{{ vault_win_admin_password }}"

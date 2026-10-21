@@ -1,0 +1,48 @@
+---
+# Securite : on verifie la cible AVANT toute operation destructive.
+- name: Verifier que le disque cible existe et ne contient rien d'autre
+  ansible.builtin.assert:
+    that:
+      - storage_disk in ansible_facts.devices
+      - ansible_facts.devices[storage_disk].partitions | length == 0
+      - >-
+        (ansible_facts.devices[storage_disk].holders | length == 0)
+        or (storage_vg in (ansible_facts.lvm.vgs | default({})))
+    fail_msg: >-
+      Arret : /dev/{{ storage_disk }} est absent, partitionne ou utilise par autre chose
+      que {{ storage_vg }}. Verifie avec lsblk et corrige storage_disk.
+    success_msg: "/dev/{{ storage_disk }} est libre ou deja utilise par {{ storage_vg }}"
+
+- name: Creer le groupe de volumes
+  community.general.lvg:
+    vg: "{{ storage_vg }}"
+    pvs: "/dev/{{ storage_disk }}"
+
+- name: Creer le volume logique (jamais de reduction automatique)
+  community.general.lvol:
+    vg: "{{ storage_vg }}"
+    lv: "{{ storage_lv }}"
+    size: "{{ storage_lv_size }}"
+    shrink: false
+    resizefs: true
+
+- name: Creer le systeme de fichiers (sans reformater s'il existe deja)
+  community.general.filesystem:
+    fstype: "{{ storage_fstype }}"
+    dev: "/dev/{{ storage_vg }}/{{ storage_lv }}"
+
+- name: Monter le volume et l'inscrire dans /etc/fstab
+  ansible.posix.mount:
+    path: "{{ storage_mount_point }}"
+    src: "/dev/mapper/{{ storage_vg }}-{{ storage_lv }}"
+    fstype: "{{ storage_fstype }}"
+    opts: defaults,nofail
+    state: mounted
+
+- name: Appliquer les droits sur le point de montage
+  ansible.builtin.file:
+    path: "{{ storage_mount_point }}"
+    state: directory
+    owner: "{{ storage_owner }}"
+    group: "{{ storage_group }}"
+    mode: "{{ storage_mode }}"

@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: infraready
+  description: Groupes, comptes et droits sudo des serveurs Linux
+  license: MIT
+  min_ansible_version: "2.18"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble
+dependencies: []

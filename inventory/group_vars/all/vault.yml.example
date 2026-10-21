@@ -1,0 +1,27 @@
+---
+# MODELE de fichier de secrets. Ne mets JAMAIS de vrais mots de passe dans ce fichier.
+#
+# 1. cp inventory/group_vars/all/vault.yml.example inventory/group_vars/all/vault.yml
+# 2. Remplace chaque valeur A_REMPLACER dans vault.yml
+# 3. ansible-vault encrypt inventory/group_vars/all/vault.yml
+#
+# Le fichier vault.yml chiffre peut etre commite : la CI verifie qu'il est bien chiffre.
+
+# Mot de passe du compte Administrator de WIN-DC01 (connexion WinRM)
+vault_win_admin_password: "A_REMPLACER"
+
+# Mot de passe DSRM (mode restauration des services d'annuaire)
+vault_ad_safe_mode_password: "A_REMPLACER"
+
+# Mot de passe initial des comptes AD de test
+vault_ad_default_user_password: "A_REMPLACER"
+
+# Mot de passe sudo du compte "infra" sur LINUX01 et OPS01
+vault_linux_become_password: "A_REMPLACER"
+
+# Hash SHA-512 du mot de passe des comptes Linux de test
+# Generer avec : openssl passwd -6 'MotDePasse'
+vault_linux_users_password_hash: "A_REMPLACER"
+
+# Mot de passe de l'administrateur Grafana
+vault_grafana_admin_password: "A_REMPLACER"

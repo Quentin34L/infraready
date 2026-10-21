@@ -1,0 +1,54 @@
+---
+- name: Creer la zone de recherche inversee
+  ansible.windows.win_dns_zone:
+    name: "{{ windows_dc_reverse_zone }}"
+    type: primary
+    replication: forest
+    state: present
+
+- name: Enregistrements A des serveurs Linux
+  ansible.windows.win_dns_record:
+    name: "{{ item.name }}"
+    type: A
+    value: "{{ item.ip }}"
+    zone: "{{ lab_domain }}"
+    state: present
+  loop: "{{ lab_hosts | rejectattr('name', 'equalto', 'win-dc01') }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Enregistrements PTR de tous les serveurs
+  ansible.windows.win_dns_record:
+    name: "{{ item.ip.split('.') | last }}"
+    type: PTR
+    value: "{{ item.name }}.{{ lab_domain }}"
+    zone: "{{ windows_dc_reverse_zone }}"
+    state: present
+  loop: "{{ lab_hosts }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Alias DNS (CNAME)
+  ansible.windows.win_dns_record:
+    name: "{{ item.name }}"
+    type: CNAME
+    value: "{{ item.target }}.{{ lab_domain }}"
+    zone: "{{ lab_domain }}"
+    state: present
+  loop: "{{ lab_dns_aliases }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Rediriger les noms externes vers le DNS de la passerelle NAT
+  ansible.windows.win_powershell:
+    parameters:
+      Forwarder: "{{ lab_dns_forwarder }}"
+    script: |
+      param([string]$Forwarder)
+      $actuels = @((Get-DnsServerForwarder).IPAddress | ForEach-Object { $_.IPAddressToString })
+      if ($actuels.Count -eq 1 -and $actuels[0] -eq $Forwarder) {
+          $Ansible.Changed = $false
+      } else {
+          Set-DnsServerForwarder -IPAddress $Forwarder
+          $Ansible.Changed = $true
+      }

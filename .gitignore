@@ -1,0 +1,15 @@
+# Mot de passe Ansible Vault : ne JAMAIS le commiter
+.vault_pass*
+*.vault_pass
+
+# Fichiers temporaires
+*.retry
+__pycache__/
+.cache/
+collections/
+
+# Cles privees
+*.pem
+id_rsa
+id_ed25519
+.ansible/

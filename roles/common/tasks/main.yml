@@ -1,0 +1,67 @@
+---
+- name: Mettre a jour le cache apt (si plus vieux d'une heure)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  changed_when: false
+
+- name: Installer les paquets de base
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+
+- name: Regler le fuseau horaire
+  community.general.timezone:
+    name: "{{ common_timezone }}"
+
+- name: Demarrer la synchronisation horaire
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+- name: Durcir la configuration SSH
+  ansible.builtin.template:
+    src: sshd-infraready.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-infraready.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Redemarrer ssh
+
+- name: Pare-feu - autoriser SSH depuis le reseau du labo
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    from_ip: "{{ common_admin_network }}"
+    comment: SSH labo
+
+- name: Pare-feu - autoriser node_exporter depuis OPS01 uniquement
+  community.general.ufw:
+    rule: allow
+    port: "9100"
+    proto: tcp
+    from_ip: "{{ common_monitoring_ip }}"
+    comment: Prometheus node_exporter
+
+- name: Pare-feu - refuser par defaut le trafic entrant
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Pare-feu - autoriser par defaut le trafic sortant
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Activer le pare-feu UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Demarrer node_exporter
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    state: started
+    enabled: true

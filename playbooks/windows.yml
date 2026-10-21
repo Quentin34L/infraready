@@ -1,0 +1,28 @@
+---
+- name: Controleur de domaine WIN-DC01
+  hosts: windows
+  gather_facts: true
+  # Identifiants explicites pour les modules AD (evite le probleme du "double saut" NTLM)
+  module_defaults:
+    group/microsoft.ad.domain:
+      domain_username: "{{ lab_netbios }}\\{{ ansible_user }}"
+      domain_password: "{{ ansible_password }}"
+  roles:
+    - windows_dc
+
+  post_tasks:
+    - name: Verifier le domaine, les comptes et le DNS
+      ansible.windows.win_powershell:
+        script: |
+          $Ansible.Changed = $false
+          [PSCustomObject]@{
+              Domaine      = (Get-ADDomain).DNSRoot
+              Groupes      = @(Get-ADGroup -Filter 'Name -like "GRP-*"').Count
+              Utilisateurs = @(Get-ADUser -Filter * -SearchBase 'OU=Utilisateurs,OU=InfraReady,DC=infraready,DC=test').Count
+              DnsLinux01   = (Resolve-DnsName linux01.infraready.test -Type A).IPAddress
+          }
+      register: windows_check
+
+    - name: Afficher le resultat
+      ansible.builtin.debug:
+        var: windows_check.output

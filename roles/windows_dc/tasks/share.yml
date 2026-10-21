@@ -1,0 +1,36 @@
+---
+- name: Creer le dossier du partage commun
+  ansible.windows.win_file:
+    path: "{{ windows_dc_share_path }}"
+    state: directory
+
+- name: NTFS - GRP-Utilisateurs peut modifier le contenu
+  ansible.windows.win_acl:
+    path: "{{ windows_dc_share_path }}"
+    user: GRP-Utilisateurs
+    rights: Modify
+    type: allow
+    state: present
+    inherit: ContainerInherit, ObjectInherit
+    propagation: None
+
+- name: NTFS - GRP-Support peut seulement lire
+  ansible.windows.win_acl:
+    path: "{{ windows_dc_share_path }}"
+    user: GRP-Support
+    rights: ReadAndExecute
+    type: allow
+    state: present
+    inherit: ContainerInherit, ObjectInherit
+    propagation: None
+
+- name: Publier le partage reseau
+  ansible.windows.win_share:
+    name: "{{ windows_dc_share_name }}"
+    path: "{{ windows_dc_share_path }}"
+    description: Partage commun InfraReady
+    full: Administrators
+    change: GRP-Utilisateurs
+    read: GRP-Support
+    list: false
+    state: present

@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>InfraReady - {{ inventory_hostname }}</title>
+</head>
+<body>
+  <h1>InfraReady</h1>
+  <p>Serveur web de laboratoire : {{ inventory_hostname }} ({{ ansible_host }})</p>
+  <p>Domaine : {{ lab_domain }}</p>
+</body>
+</html>

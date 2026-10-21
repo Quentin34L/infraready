@@ -1,0 +1,5 @@
+---
+webserver_root: /srv/www/infraready
+webserver_server_name: "linux01.{{ lab_domain }}"
+webserver_content_group: webadmin
+webserver_allowed_network: "{{ lab_network }}"

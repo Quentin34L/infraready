@@ -1,0 +1,14 @@
+---
+# Collections Ansible necessaires au projet
+# Installation : ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: ansible.windows
+    version: ">=2.6.0"
+  - name: community.windows
+    version: ">=2.3.0"
+  - name: microsoft.ad
+    version: ">=1.9.0"
+  - name: community.general
+    version: ">=9.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0"
